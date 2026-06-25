@@ -22,7 +22,6 @@
           wx:if="{{item.status === 'unused' || item.status === 'failed'}}"
           class="delete"
           data-id="{{item._id}}"
-          data-fileid="{{item.fileID}}"
           data-status="{{item.status}}"
           bindtap="confirmDelete"
         >

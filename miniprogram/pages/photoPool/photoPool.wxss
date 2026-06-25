@@ -31,14 +31,26 @@ page {
 
 .upload-btn,
 .empty-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0 24rpx;
+  margin: 0;
   min-width: 148rpx;
   height: 76rpx;
-  line-height: 76rpx;
+  line-height: 1;
   border-radius: 10rpx;
   color: #fff;
   background: #244638;
   font-size: 28rpx;
   font-weight: 600;
+  text-align: center;
+}
+
+.upload-btn::after,
+.empty-btn::after {
+  border: 0;
 }
 
 .grid {

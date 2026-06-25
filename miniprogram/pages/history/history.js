@@ -1,4 +1,4 @@
-const db = wx.cloud.database();
+const { callFunction } = require("../../utils/cloud");
 
 Page({
   data: {
@@ -13,14 +13,14 @@ Page({
   async loadComics() {
     this.setData({ loading: true });
     try {
-      const res = await db
-        .collection("comics")
-        .where({ status: "ready" })
-        .orderBy("createdAt", "desc")
-        .limit(50)
-        .get();
+      const res = await callFunction("dailyComic", { action: "listComics" });
+      const result = res.result || {};
       this.setData({
-        comics: res.data || [],
+        comics: (result.comics || []).map((comic) => ({
+          ...comic,
+          isGenerating: comic.status !== "ready",
+          coverSrc: comic.generatedImageDisplayURL || comic.sourceDisplayURL || comic.sourceFileID,
+        })),
         loading: false,
       });
     } catch (err) {

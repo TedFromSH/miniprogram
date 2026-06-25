@@ -41,7 +41,7 @@
   </view>
 
   <view wx:if="{{todayComic}}" class="comic-card" bindtap="openTodayComic">
-    <image class="comic-cover" src="{{todayComic.sourceFileID}}" mode="aspectFill"></image>
+    <image class="comic-cover" src="{{todayComic.generatedImageDisplayURL || todayComic.sourceDisplayURL || todayComic.sourceFileID}}" mode="aspectFill"></image>
     <view class="comic-body">
       <view class="comic-date">{{todayComic.date}}</view>
       <view class="comic-title">{{todayComic.title}}</view>
@@ -50,7 +50,7 @@
   </view>
 
   <view wx:elif="{{latestComic}}" class="comic-card" bindtap="openTodayComic">
-    <image class="comic-cover" src="{{latestComic.sourceFileID}}" mode="aspectFill"></image>
+    <image class="comic-cover" src="{{latestComic.generatedImageDisplayURL || latestComic.sourceDisplayURL || latestComic.sourceFileID}}" mode="aspectFill"></image>
     <view class="comic-body">
       <view class="comic-date">最近一次生成</view>
       <view class="comic-title">{{latestComic.title}}</view>

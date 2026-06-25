@@ -1,4 +1,4 @@
-const db = wx.cloud.database();
+const { callFunction } = require("../../utils/cloud");
 
 Page({
   data: {
@@ -15,42 +15,42 @@ Page({
   },
 
   async onShow() {
-    await this.initCollections();
-    this.loadDashboard();
+    const ready = await this.initCollections();
+    if (ready) {
+      this.loadDashboard();
+    } else {
+      this.setData({ loading: false });
+    }
   },
 
   async initCollections() {
     try {
-      await wx.cloud.callFunction({
-        name: "dailyComic",
-        data: { action: "init" },
-      });
+      await callFunction("dailyComic", { action: "init" });
+      this.setData({ initError: "" });
+      return true;
     } catch (err) {
+      console.error("dailyComic init failed", err);
       this.setData({
         initError: "云函数尚未部署，上传和生成前请先在开发者工具中上传 dailyComic 云函数",
       });
+      return false;
     }
   },
 
   async loadDashboard() {
     this.setData({ loading: true });
     try {
-      const [unused, used, failed, todayComic, latestComic] = await Promise.all([
-        this.countPhotos("unused"),
-        this.countPhotos("used"),
-        this.countPhotos("failed"),
-        this.fetchTodayComic(),
-        this.fetchLatestComic(),
-      ]);
+      const res = await callFunction("dailyComic", { action: "dashboard" });
+      const result = res.result || {};
 
       this.setData({
-        stats: {
-          unused,
-          used,
-          failed,
+        stats: result.stats || {
+          unused: 0,
+          used: 0,
+          failed: 0,
         },
-        todayComic,
-        latestComic,
+        todayComic: result.todayComic || null,
+        latestComic: result.latestComic || null,
         loading: false,
       });
     } catch (err) {
@@ -62,40 +62,6 @@ Page({
     }
   },
 
-  async countPhotos(status) {
-    const res = await db.collection("photos").where({ status }).count();
-    return res.total || 0;
-  },
-
-  async fetchTodayComic() {
-    const date = this.getTodayKey();
-    const res = await db
-      .collection("comics")
-      .where({ date, status: "ready" })
-      .orderBy("createdAt", "desc")
-      .limit(1)
-      .get();
-    return res.data[0] || null;
-  },
-
-  async fetchLatestComic() {
-    const res = await db
-      .collection("comics")
-      .where({ status: "ready" })
-      .orderBy("createdAt", "desc")
-      .limit(1)
-      .get();
-    return res.data[0] || null;
-  },
-
-  getTodayKey() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = `${now.getMonth() + 1}`.padStart(2, "0");
-    const day = `${now.getDate()}`.padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  },
-
   async generateTodayComic() {
     if (this.data.generating) return;
 
@@ -103,9 +69,9 @@ Page({
     wx.showLoading({ title: "生成中" });
 
     try {
-      const res = await wx.cloud.callFunction({
-        name: "dailyComic",
-        data: { action: "generate" },
+      const res = await callFunction("dailyComic", {
+        action: "generate",
+        force: true,
       });
       const result = res.result || {};
 

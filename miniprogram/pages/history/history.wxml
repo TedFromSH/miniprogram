@@ -15,9 +15,15 @@
       data-id="{{item._id}}"
       bindtap="openComic"
     >
-      <image class="cover" src="{{item.sourceFileID}}" mode="aspectFill"></image>
+      <view class="cover-wrap">
+        <image class="cover" src="{{item.coverSrc}}" mode="aspectFill"></image>
+        <view wx:if="{{item.isGenerating}}" class="status-badge">生成中</view>
+      </view>
       <view class="body">
-        <view class="date">{{item.date}}</view>
+        <view class="meta-row">
+          <view class="date">{{item.date}}</view>
+          <view wx:if="{{item.isGenerating}}" class="status-text">生成中</view>
+        </view>
         <view class="comic-title">{{item.title}}</view>
         <view class="summary">{{item.summary}}</view>
       </view>

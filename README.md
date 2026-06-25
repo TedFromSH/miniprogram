@@ -7,7 +7,7 @@
 1. 在小程序「照片池」上传多张图片。
 2. 图片保存到微信云存储，照片记录写入 `photos` 集合。
 3. 首页点击「生成今日漫画」调用 `dailyComic` 云函数。
-4. 云函数随机选择一张 `unused` 照片，生成占位漫画脚本并写入 `comics` 集合。
+4. 云函数随机选择一张 `unused` 照片，调用 AI 生成漫画图和分镜脚本，并写入 `comics` 集合。
 5. 照片状态从 `unused` 变为 `used`。
 6. 小程序进入漫画详情页阅读内容。
 
@@ -28,15 +28,23 @@
 - `{ action: "generate" }`：为当前用户生成今日漫画。
 - 定时触发：默认配置为每天 8:00 触发，扫描有未使用照片的用户并生成内容。
 
-当前云函数使用 `mock-v1` 占位生成器，后续真实 AI 接口应替换 `cloudfunctions/dailyComic/index.js` 中的 `buildMockComicContent` 流程。
+云函数会读取环境变量 `AI_API_KEY` 调用 AI 接口：
+
+- `AI_API_KEY`：必填，AI 接口密钥。
+- `AI_BASE_URL`：可选，默认 `https://api.gptsapi.net`。
+- `AI_TEXT_MODEL`：可选，默认 `gpt-5.5`。
+- `AI_IMAGE_MODEL`：可选，默认 `gpt-image-2`。
+
+如果没有配置 `AI_API_KEY`，或者 AI 接口调用失败，云函数会退回 `mock-fallback-v1`，保证小程序主链路不中断。
 
 ## 开发者工具操作
 
 1. 用微信开发者工具打开本项目目录。
 2. 确认云开发环境 ID 已在 `miniprogram/app.js` 中配置。
-3. 右键 `cloudfunctions/dailyComic`，选择上传并部署云函数。
-4. 运行小程序，进入首页或照片池，云函数会尝试初始化数据库集合。
-5. 上传照片后，在首页点击「生成今日漫画」验证完整链路。
+3. 在 `dailyComic` 云函数配置中添加环境变量 `AI_API_KEY`。
+4. 右键 `cloudfunctions/dailyComic`，选择上传并部署云函数。
+5. 运行小程序，进入首页或照片池，云函数会尝试初始化数据库集合。
+6. 上传照片后，在首页点击「生成今日漫画」验证完整链路。
 
 ## Git
 

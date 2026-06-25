@@ -1,12 +1,17 @@
 <view class="page" wx:if="{{comic}}">
-  <image class="cover" src="{{comic.sourceFileID}}" mode="aspectFill"></image>
+  <image class="cover" src="{{coverSrc}}" mode="aspectFill" bindload="onCoverLoad" binderror="onCoverError"></image>
 
   <view class="article">
     <view class="date">{{comic.date}}</view>
     <view class="title">{{comic.title}}</view>
     <view class="summary">{{comic.summary}}</view>
 
-    <view class="panel-list">
+    <view wx:if="{{processing || comic.status === 'processing' || comic.status === 'image_processing'}}" class="processing-box">
+      <view class="processing-title">正在生成</view>
+      <view class="processing-desc">文案和图片会分步完成，图片生成可能需要更久。</view>
+    </view>
+
+    <view wx:if="{{comic.panels && comic.panels.length}}" class="panel-list">
       <view wx:for="{{comic.panels}}" wx:key="index" class="panel">
         <view class="panel-index">分镜 {{index + 1}}</view>
         <view class="caption">{{item.caption}}</view>
@@ -16,6 +21,32 @@
 
     <view wx:if="{{comic.ending}}" class="ending">
       {{comic.ending}}
+    </view>
+
+    <view wx:if="{{comic.generator || comic.displayAiError}}" class="debug-box">
+      <view class="debug-title">生成诊断</view>
+      <view class="debug-row">generator: {{comic.generator || '-'}}</view>
+      <view class="debug-row">cover: {{coverSrc}}</view>
+      <view class="debug-row">has generated file: {{comic.generatedImageFileID ? 'yes' : 'no'}}</view>
+      <view wx:if="{{comic.generatedImageUrl}}" class="debug-row">generated url: {{comic.generatedImageUrl}}</view>
+      <view wx:if="{{comic.generatedImageFileID}}" class="debug-row">generated file: {{comic.generatedImageFileID}}</view>
+      <view wx:if="{{comic.generatedImageDisplayURL}}" class="debug-row">generated display: {{comic.generatedImageDisplayURL}}</view>
+      <view wx:if="{{comic.displayAiError}}" class="debug-row">error: {{comic.displayAiError}}</view>
+      <button class="debug-action" loading="{{processing}}" bindtap="debugImagePipeline">验证图片管线</button>
+      <button class="debug-action" loading="{{processing}}" bindtap="regenerateComicImage">重新生成漫画图</button>
+      <view wx:if="{{imageDebug}}" class="debug-result">
+        <view class="debug-title">图片管线结果</view>
+        <view class="debug-row">code: {{imageDebug.code}}</view>
+        <view wx:if="{{imageDebug.debugMode}}" class="debug-row">mode: {{imageDebug.debugMode}}</view>
+        <view wx:if="{{imageDebug.generatedImageUrl}}" class="debug-row">ai url: {{imageDebug.generatedImageUrl}}</view>
+        <view wx:if="{{imageDebug.generatedImageUrl}}" class="debug-row">looks source: {{imageDebug.generatedUrlLooksLikeSource ? 'yes' : 'no'}}</view>
+        <view wx:if="{{imageDebug.download.finalUrl}}" class="debug-row">final url: {{imageDebug.download.finalUrl}}</view>
+        <view wx:if="{{imageDebug.download}}" class="debug-row">download: {{imageDebug.download.contentType}} / {{imageDebug.download.size}} bytes / {{imageDebug.download.authMode}}</view>
+        <view wx:if="{{imageDebug.download}}" class="debug-row">polls: {{imageDebug.download.pollCount}}</view>
+        <view wx:if="{{imageDebug.upload}}" class="debug-row">upload: {{imageDebug.upload.status}} / {{imageDebug.upload.fileID}}</view>
+        <view wx:if="{{imageDebug.verify}}" class="debug-row">verify: {{imageDebug.verify.contentType || imageDebug.verify.error}} / {{imageDebug.verify.size || 0}} bytes</view>
+        <view wx:if="{{imageDebug.error}}" class="debug-row">error: {{imageDebug.error}}</view>
+      </view>
     </view>
 
     <button class="copy-btn" bindtap="copyText">复制文本</button>
