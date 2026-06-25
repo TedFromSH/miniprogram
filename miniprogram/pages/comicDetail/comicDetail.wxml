@@ -1,0 +1,27 @@
+<view class="page" wx:if="{{comic}}">
+  <image class="cover" src="{{comic.sourceFileID}}" mode="aspectFill"></image>
+
+  <view class="article">
+    <view class="date">{{comic.date}}</view>
+    <view class="title">{{comic.title}}</view>
+    <view class="summary">{{comic.summary}}</view>
+
+    <view class="panel-list">
+      <view wx:for="{{comic.panels}}" wx:key="index" class="panel">
+        <view class="panel-index">分镜 {{index + 1}}</view>
+        <view class="caption">{{item.caption}}</view>
+        <view class="dialogue">{{item.dialogue}}</view>
+      </view>
+    </view>
+
+    <view wx:if="{{comic.ending}}" class="ending">
+      {{comic.ending}}
+    </view>
+
+    <button class="copy-btn" bindtap="copyText">复制文本</button>
+  </view>
+</view>
+
+<view class="page" wx:else>
+  <view class="loading">内容加载中</view>
+</view>

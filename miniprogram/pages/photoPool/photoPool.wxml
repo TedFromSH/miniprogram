@@ -1,0 +1,34 @@
+<view class="page">
+  <view class="top">
+    <view>
+      <view class="title">照片池</view>
+      <view class="subtitle">上传一批照片，系统每天随机抽取一张生成漫画。</view>
+    </view>
+    <button class="upload-btn" loading="{{uploading}}" bindtap="chooseAndUpload">上传</button>
+  </view>
+
+  <view wx:if="{{!photos.length && !loading}}" class="empty">
+    <view class="empty-title">还没有照片</view>
+    <view class="empty-desc">建议先上传 7 到 30 张，够系统连续生成一段时间。</view>
+    <button class="empty-btn" bindtap="chooseAndUpload">选择照片</button>
+  </view>
+
+  <view wx:else class="grid">
+    <view wx:for="{{photos}}" wx:key="_id" class="photo-card">
+      <image class="photo" src="{{item.fileID}}" mode="aspectFill"></image>
+      <view class="meta">
+        <view class="status status-{{item.status}}">{{item.status}}</view>
+        <view
+          wx:if="{{item.status === 'unused' || item.status === 'failed'}}"
+          class="delete"
+          data-id="{{item._id}}"
+          data-fileid="{{item.fileID}}"
+          data-status="{{item.status}}"
+          bindtap="confirmDelete"
+        >
+          删除
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

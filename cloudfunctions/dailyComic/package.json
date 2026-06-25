@@ -1,0 +1,9 @@
+{
+  "name": "dailyComic",
+  "version": "1.0.0",
+  "description": "Generate the daily comic from one random unused photo.",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}

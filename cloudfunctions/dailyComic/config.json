@@ -1,0 +1,9 @@
+{
+  "triggers": [
+    {
+      "name": "dailyComicTimer",
+      "type": "timer",
+      "config": "0 0 8 * * * *"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+<view class="page">
+  <view class="title">漫画历史</view>
+  <view class="subtitle">每一次生成都会沉淀成一篇照片故事。</view>
+
+  <view wx:if="{{!comics.length && !loading}}" class="empty">
+    <view class="empty-title">还没有历史漫画</view>
+    <view class="empty-desc">回到首页生成第一篇后，这里会出现完整记录。</view>
+  </view>
+
+  <view wx:else class="list">
+    <view
+      wx:for="{{comics}}"
+      wx:key="_id"
+      class="comic-card"
+      data-id="{{item._id}}"
+      bindtap="openComic"
+    >
+      <image class="cover" src="{{item.sourceFileID}}" mode="aspectFill"></image>
+      <view class="body">
+        <view class="date">{{item.date}}</view>
+        <view class="comic-title">{{item.title}}</view>
+        <view class="summary">{{item.summary}}</view>
+      </view>
+    </view>
+  </view>
+</view>

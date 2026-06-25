@@ -1,6 +1,9 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/photoPool/photoPool",
+    "pages/history/history",
+    "pages/comicDetail/comicDetail",
     "pages/chatBot/chatBot",
     "pages/foodBuy/foodBuy"
   ],
@@ -13,7 +16,7 @@
   "window": {
     "navigationBarBackgroundColor": "#ffffff",
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "腾讯云开发Agent-UI",
+    "navigationBarTitleText": "每日照片漫画",
     "backgroundColor": "#eeeeee",
     "backgroundTextStyle": "light",
     "enablePullDownRefresh": true
