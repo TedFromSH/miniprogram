@@ -2,6 +2,7 @@
   "pages": [
     "pages/index/index",
     "pages/familySpace/familySpace",
+    "pages/familyInvite/familyInvite",
     "pages/photoPool/photoPool",
     "pages/history/history",
     "pages/comicDetail/comicDetail",

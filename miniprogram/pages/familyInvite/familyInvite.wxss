@@ -1,0 +1,106 @@
+page {
+  background: #f6f7f2;
+  color: #20231d;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 32rpx 28rpx 56rpx;
+  box-sizing: border-box;
+}
+
+.header {
+  min-height: 220rpx;
+  display: flex;
+  align-items: flex-end;
+  padding: 32rpx;
+  box-sizing: border-box;
+  color: #fff;
+  background: linear-gradient(135deg, #244638 0%, #6c7f45 100%);
+  border-radius: 16rpx;
+}
+
+.eyebrow {
+  font-size: 24rpx;
+  opacity: 0.82;
+  margin-bottom: 12rpx;
+}
+
+.title {
+  font-size: 44rpx;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin-top: 16rpx;
+  font-size: 27rpx;
+  line-height: 1.5;
+  opacity: 0.86;
+}
+
+.card {
+  margin-top: 24rpx;
+  padding: 34rpx 30rpx;
+  background: #fff;
+  border: 1rpx solid #e7e8df;
+  border-radius: 14rpx;
+}
+
+.loading,
+.label {
+  color: #74786d;
+  font-size: 26rpx;
+}
+
+.family-name {
+  margin-top: 12rpx;
+  font-size: 40rpx;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.desc,
+.error-desc {
+  margin-top: 18rpx;
+  color: #5d6358;
+  font-size: 28rpx;
+  line-height: 1.55;
+}
+
+.error-title {
+  font-size: 34rpx;
+  font-weight: 700;
+}
+
+.primary-btn,
+.secondary-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 88rpx;
+  margin: 28rpx 0 0;
+  padding: 0 28rpx;
+  border-radius: 10rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.primary-btn::after,
+.secondary-btn::after {
+  border: 0;
+}
+
+.primary-btn {
+  color: #fff;
+  background: #244638;
+}
+
+.secondary-btn {
+  color: #244638;
+  background: #fff;
+  border: 1rpx solid #cdd2c1;
+}

@@ -1,5 +1,6 @@
 const cloud = require("wx-server-sdk");
 const https = require("https");
+const crypto = require("crypto");
 
 cloud.init({
   env: cloud.DYNAMIC_CURRENT_ENV,
@@ -13,6 +14,7 @@ const IMAGE_REQUEST_TIMEOUT_MS = 50000;
 const IMAGE_RESULT_POLL_INTERVAL_MS = 3000;
 const IMAGE_RESULT_MAX_POLLS = 5;
 const STORY_REQUEST_TIMEOUT_MS = 45000;
+const FAMILY_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 exports.main = async (event = {}) => {
   await ensureCollections();
@@ -33,6 +35,18 @@ exports.main = async (event = {}) => {
 
   if (event.action === "createFamily") {
     return createFamily(openid, event.name);
+  }
+
+  if (event.action === "createFamilyInvite") {
+    return createFamilyInvite(openid, event.familyId);
+  }
+
+  if (event.action === "getFamilyInvite") {
+    return getFamilyInvite(openid, event.token);
+  }
+
+  if (event.action === "joinFamilyInvite") {
+    return joinFamilyInvite(openid, event.token);
   }
 
   const scopeResult = await resolveRequestScope(openid, event);
@@ -89,6 +103,7 @@ async function ensureCollections() {
   await ensureCollection("users");
   await ensureCollection("families");
   await ensureCollection("familyMembers");
+  await ensureCollection("familyInvites");
   await ensureCollection("photos");
   await ensureCollection("comics");
 }
@@ -384,6 +399,209 @@ async function createFamily(openid, name) {
 function normalizeFamilyName(name) {
   const trimmed = typeof name === "string" ? name.trim() : "";
   return (trimmed || "我的家庭").slice(0, 20);
+}
+
+async function createFamilyInvite(openid, familyId) {
+  if (!openid) {
+    return { code: "missing_openid" };
+  }
+
+  const normalizedFamilyId = normalizeId(familyId);
+  if (!normalizedFamilyId) {
+    return { code: "missing_family" };
+  }
+
+  const family = await getActiveFamily(normalizedFamilyId);
+  if (!family) {
+    return { code: "not_found" };
+  }
+
+  if (family.ownerOpenid !== openid) {
+    return { code: "forbidden" };
+  }
+
+  const existing = await getReusableInvite(openid, normalizedFamilyId);
+  if (existing) {
+    return {
+      code: "ok",
+      invite: formatInvite(existing, family),
+    };
+  }
+
+  const now = Date.now();
+  const expiresAtTimestamp = now + FAMILY_INVITE_TTL_MS;
+  const token = createInviteToken();
+
+  await db.collection("familyInvites").add({
+    data: {
+      familyId: normalizedFamilyId,
+      token,
+      createdBy: openid,
+      status: "active",
+      maxUses: 0,
+      usedCount: 0,
+      expiresAt: new Date(expiresAtTimestamp),
+      expiresAtTimestamp,
+      createdAt: db.serverDate(),
+      updatedAt: db.serverDate(),
+    },
+  });
+
+  return {
+    code: "ok",
+    invite: {
+      familyId: normalizedFamilyId,
+      familyName: family.name,
+      token,
+      expiresAtTimestamp,
+    },
+  };
+}
+
+async function getFamilyInvite(openid, token) {
+  const inviteResult = await resolveFamilyInvite(token);
+  if (inviteResult.code !== "ok") {
+    return inviteResult;
+  }
+
+  const { invite, family } = inviteResult;
+  const isMember = openid ? await canAccessFamily(openid, family._id) : false;
+
+  return {
+    code: "ok",
+    invite: formatInvite(invite, family),
+    isMember,
+  };
+}
+
+async function joinFamilyInvite(openid, token) {
+  if (!openid) {
+    return { code: "missing_openid" };
+  }
+
+  const inviteResult = await resolveFamilyInvite(token);
+  if (inviteResult.code !== "ok") {
+    return inviteResult;
+  }
+
+  const { invite, family } = inviteResult;
+  const isMember = await canAccessFamily(openid, family._id);
+
+  if (!isMember) {
+    await db.collection("familyMembers").add({
+      data: {
+        familyId: family._id,
+        openid,
+        role: "member",
+        status: "active",
+        joinedAt: db.serverDate(),
+        invitedBy: invite.createdBy || "",
+        inviteToken: invite.token,
+        createdAt: db.serverDate(),
+        updatedAt: db.serverDate(),
+      },
+    });
+  }
+
+  await db.collection("familyInvites").doc(invite._id).update({
+    data: {
+      usedCount: db.command.inc(1),
+      lastUsedAt: db.serverDate(),
+      updatedAt: db.serverDate(),
+    },
+  });
+
+  return {
+    code: "ok",
+    family: {
+      _id: family._id,
+      name: family.name,
+      ownerOpenid: family.ownerOpenid,
+      status: family.status,
+      role: isMember && family.ownerOpenid === openid ? "owner" : "member",
+    },
+    alreadyMember: isMember,
+  };
+}
+
+async function getReusableInvite(openid, familyId) {
+  const now = Date.now();
+  const res = await db
+    .collection("familyInvites")
+    .where({
+      familyId,
+      createdBy: openid,
+      status: "active",
+    })
+    .limit(10)
+    .get();
+
+  return (res.data || [])
+    .filter((invite) => invite && invite.token && Number(invite.expiresAtTimestamp || 0) > now)
+    .sort((a, b) => Number(b.expiresAtTimestamp || 0) - Number(a.expiresAtTimestamp || 0))[0];
+}
+
+async function resolveFamilyInvite(token) {
+  const normalizedToken = normalizeId(token);
+  if (!normalizedToken) {
+    return { code: "missing_invite" };
+  }
+
+  const inviteRes = await db
+    .collection("familyInvites")
+    .where({
+      token: normalizedToken,
+      status: "active",
+    })
+    .limit(1)
+    .get();
+  const invite = inviteRes.data && inviteRes.data[0];
+
+  if (!invite) {
+    return { code: "invite_not_found" };
+  }
+
+  if (Number(invite.expiresAtTimestamp || 0) <= Date.now()) {
+    return { code: "invite_expired" };
+  }
+
+  const family = await getActiveFamily(invite.familyId);
+  if (!family) {
+    return { code: "family_not_found" };
+  }
+
+  return {
+    code: "ok",
+    invite,
+    family,
+  };
+}
+
+async function getActiveFamily(familyId) {
+  if (!familyId) return null;
+
+  try {
+    const familyRes = await db.collection("families").doc(familyId).get();
+    const family = familyRes.data;
+    if (!family || family.status !== "active") return null;
+    family._id = family._id || familyId;
+    return family;
+  } catch (err) {
+    return null;
+  }
+}
+
+function formatInvite(invite, family) {
+  return {
+    familyId: family._id,
+    familyName: family.name,
+    token: invite.token,
+    expiresAtTimestamp: invite.expiresAtTimestamp || 0,
+  };
+}
+
+function createInviteToken() {
+  return crypto.randomBytes(16).toString("hex");
 }
 
 async function processAllUsers() {

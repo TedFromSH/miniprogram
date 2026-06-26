@@ -1,0 +1,30 @@
+<view class="page">
+  <view class="header">
+    <view>
+      <view class="eyebrow">家庭邀请</view>
+      <view class="title">加入家庭空间</view>
+      <view class="subtitle">加入后，你可以和家人共享照片池与漫画故事。</view>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="card">
+    <view class="loading">邀请加载中</view>
+  </view>
+
+  <view wx:elif="{{errorText}}" class="card">
+    <view class="error-title">{{errorText}}</view>
+    <view class="error-desc">请让家庭创建人重新发送邀请卡片。</view>
+    <button class="secondary-btn" bindtap="backHome">返回首页</button>
+  </view>
+
+  <view wx:else class="card">
+    <view class="label">邀请你加入</view>
+    <view class="family-name">{{invite.familyName}}</view>
+    <view class="desc">加入后，当前账号可以访问这个家庭空间里的照片池、漫画历史和后续生成内容。</view>
+
+    <button class="primary-btn" loading="{{joining}}" bindtap="joinFamily">
+      {{isMember ? '进入家庭空间' : '加入家庭'}}
+    </button>
+    <button class="secondary-btn" bindtap="backHome">暂不加入</button>
+  </view>
+</view>

@@ -10,7 +10,10 @@ Page({
       scopeId: "",
       scopeName: "",
     },
+    activeFamily: null,
     familyName: "",
+    invitePreparing: false,
+    inviteShare: null,
   },
 
   onShow() {
@@ -32,6 +35,8 @@ Page({
       this.setData({
         families,
         activeScope,
+        activeFamily: this.getActiveFamily(activeScope, families),
+        inviteShare: null,
         loading: false,
       });
     } catch (err) {
@@ -122,6 +127,8 @@ Page({
     setActiveScope(null);
     this.setData({
       activeScope: getActiveScope(),
+      activeFamily: null,
+      inviteShare: null,
     });
     wx.showToast({
       title: "已切换到个人",
@@ -142,6 +149,8 @@ Page({
 
     this.setData({
       activeScope: getActiveScope(),
+      activeFamily: family,
+      inviteShare: null,
     });
     wx.showToast({
       title: "已切换到家庭",
@@ -158,5 +167,60 @@ Page({
         });
       },
     });
+  },
+
+  getActiveFamily(activeScope, families) {
+    if (!activeScope || activeScope.scopeType !== "family") return null;
+    return (families || []).find((family) => family._id === activeScope.scopeId) || null;
+  },
+
+  async prepareFamilyInvite() {
+    const family = this.data.activeFamily;
+    if (!family || family.role !== "owner" || this.data.invitePreparing) return;
+
+    this.setData({ invitePreparing: true });
+    wx.showLoading({ title: "生成中" });
+
+    try {
+      const res = await callFunction("dailyComic", {
+        action: "createFamilyInvite",
+        familyId: family._id,
+      });
+      const result = res.result || {};
+      if (result.code !== "ok" || !result.invite) {
+        throw new Error(result.code || "invite failed");
+      }
+
+      this.setData({
+        inviteShare: {
+          title: `邀请你加入「${result.invite.familyName}」`,
+          path: `/pages/familyInvite/familyInvite?token=${result.invite.token}`,
+        },
+      });
+
+      wx.showToast({
+        title: "邀请卡片已生成",
+        icon: "success",
+      });
+    } catch (err) {
+      wx.showToast({
+        title: "邀请生成失败",
+        icon: "none",
+      });
+    } finally {
+      wx.hideLoading();
+      this.setData({ invitePreparing: false });
+    }
+  },
+
+  onShareAppMessage(options = {}) {
+    if (options.from === "button" && this.data.inviteShare) {
+      return this.data.inviteShare;
+    }
+
+    return {
+      title: "生活瞬间",
+      path: "/pages/index/index",
+    };
   },
 });

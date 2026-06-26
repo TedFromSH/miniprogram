@@ -247,6 +247,7 @@ page {
 }
 
 .empty-state {
+  margin-top: 28rpx;
   padding: 56rpx 32rpx;
   text-align: center;
   background: #fff;

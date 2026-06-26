@@ -11,11 +11,13 @@
 5. 照片状态从 `unused` 变为 `used`。
 6. 小程序进入漫画详情页阅读内容。
 7. 用户可以创建家庭空间，并在个人空间/家庭空间之间切换。不同空间的照片池、统计和漫画历史相互隔离。
+8. 家庭 owner 可以生成邀请卡片，通过微信分享给家人；被邀请人确认后加入家庭空间。
 
 ## 页面
 
 - `pages/index/index`：首页，展示当前空间、照片池统计、随机生成入口、今日漫画故事或历史漫画故事。
-- `pages/familySpace/familySpace`：家庭空间页，支持创建家庭空间，并在个人空间/家庭空间之间切换。
+- `pages/familySpace/familySpace`：家庭空间页，支持创建家庭空间、切换空间，并由 owner 发送家庭邀请卡片。
+- `pages/familyInvite/familyInvite`：家庭邀请确认页，被邀请人通过分享卡片进入后确认加入家庭。
 - `pages/photoPool/photoPool`：照片池，支持批量上传和删除未使用照片。
 - `pages/history/history`：漫画历史列表。
 - `pages/comicDetail/comicDetail`：漫画详情阅读页。
@@ -38,6 +40,9 @@
 - `{ action: "processImage", comicId }`：生成或补全漫画图片。
 - `{ action: "listFamilies" }`：列出当前用户加入的家庭空间。
 - `{ action: "createFamily", name }`：创建家庭空间，创建人自动成为 owner。
+- `{ action: "createFamilyInvite", familyId }`：由家庭 owner 创建邀请 token，用于分享邀请卡片。
+- `{ action: "getFamilyInvite", token }`：读取邀请信息，展示家庭名称和加入状态。
+- `{ action: "joinFamilyInvite", token }`：确认加入家庭空间，写入 `familyMembers`。
 - 定时触发：默认配置为每天 8:00 触发，扫描有未使用照片的数据空间并生成内容。
 
 云函数会读取环境变量 `AI_API_KEY` 调用 AI 接口：
@@ -75,7 +80,17 @@
 6. 切回个人空间，确认个人照片池和历史不包含家庭空间数据。
 7. 再切回家庭空间，确认家庭空间数据仍然存在。
 
-当前版本还没有邀请链路；家庭空间创建后先用于验证个人/家庭数据隔离。下一步会增加由 owner 触发的家庭邀请加入流程。
+## 调试家庭邀请
+
+1. 重新部署 `cloudfunctions/dailyComic`。
+2. 在微信开发者工具上传体验版，并将被邀请账号加入体验成员。
+3. owner 进入家庭空间页，切换到自己创建的家庭。
+4. 点击「生成邀请卡片」，再点击「发送邀请卡片」。
+5. 被邀请账号点击微信卡片进入 `familyInvite` 页面。
+6. 点击「加入家庭」，成功后会自动切换到该家庭空间。
+7. 在云数据库 `familyMembers` 中确认新增 member 记录。
+
+邀请 token 默认 7 天有效。当前版本支持 owner 邀请，暂不支持普通成员继续邀请。
 
 ## 开发者工具操作
 

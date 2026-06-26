@@ -14,6 +14,22 @@
     </view>
   </view>
 
+  <view wx:if="{{activeFamily && activeFamily.role === 'owner'}}" class="section invite-section">
+    <view class="section-title">邀请家人加入</view>
+    <view class="invite-desc">发送微信卡片给家人，对方确认后就能进入这个家庭空间。</view>
+    <button
+      wx:if="{{!inviteShare}}"
+      class="invite-btn"
+      loading="{{invitePreparing}}"
+      bindtap="prepareFamilyInvite"
+    >
+      生成邀请卡片
+    </button>
+    <button wx:else class="invite-btn" open-type="share">
+      发送邀请卡片
+    </button>
+  </view>
+
   <view class="section">
     <view class="section-title">创建家庭</view>
     <view class="create-row">
