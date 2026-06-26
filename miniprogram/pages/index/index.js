@@ -1,4 +1,4 @@
-const { callFunction } = require("../../utils/cloud");
+const { callFunction, getActiveScope } = require("../../utils/cloud");
 
 Page({
   data: {
@@ -9,18 +9,30 @@ Page({
       used: 0,
       failed: 0,
     },
-    todayComic: null,
-    latestComic: null,
+    todayComics: [],
+    recentComics: [],
+    displayComics: [],
+    displaySectionTitle: "",
     initError: "",
+    activeScopeLabel: "个人空间",
   },
 
   async onShow() {
+    this.refreshActiveScopeLabel();
     const ready = await this.initCollections();
     if (ready) {
       this.loadDashboard();
     } else {
       this.setData({ loading: false });
     }
+  },
+
+  refreshActiveScopeLabel() {
+    const scope = getActiveScope();
+    this.setData({
+      activeScopeLabel:
+        scope.scopeType === "family" ? scope.scopeName || "家庭空间" : "个人空间",
+    });
   },
 
   async initCollections() {
@@ -49,8 +61,7 @@ Page({
           used: 0,
           failed: 0,
         },
-        todayComic: result.todayComic || null,
-        latestComic: result.latestComic || null,
+        ...this.buildDashboardComics(result),
         loading: false,
       });
     } catch (err) {
@@ -65,6 +76,14 @@ Page({
   async generateTodayComic() {
     if (this.data.generating) return;
 
+    if (!this.data.stats || this.data.stats.unused <= 0) {
+      wx.showToast({
+        title: "所有照片都已生成过，请先上传新照片",
+        icon: "none",
+      });
+      return;
+    }
+
     this.setData({ generating: true });
     wx.showLoading({ title: "生成中" });
 
@@ -77,10 +96,9 @@ Page({
 
       if (result.code === "no_photo") {
         wx.showToast({
-          title: "照片池空了",
+          title: "所有照片都已生成过，请先上传新照片",
           icon: "none",
         });
-        this.navigateToPhotoPool();
         return;
       }
 
@@ -103,11 +121,40 @@ Page({
   },
 
   openTodayComic() {
-    const comic = this.data.todayComic || this.data.latestComic;
+    const comic = this.data.displayComics && this.data.displayComics[0];
     if (!comic) return;
     wx.navigateTo({
       url: `/pages/comicDetail/comicDetail?id=${comic._id}`,
     });
+  },
+
+  openComic(e) {
+    const { id } = e.currentTarget.dataset;
+    if (!id) return;
+    wx.navigateTo({
+      url: `/pages/comicDetail/comicDetail?id=${id}`,
+    });
+  },
+
+  buildDashboardComics(result) {
+    const todayComics = this.normalizeComics(result.todayComics || []);
+    const recentComics = this.normalizeComics(result.recentComics || []);
+    const hasToday = todayComics.length > 0;
+
+    return {
+      todayComics,
+      recentComics,
+      displayComics: hasToday ? todayComics : recentComics,
+      displaySectionTitle: hasToday ? "今日漫画故事" : recentComics.length ? "历史漫画故事" : "",
+    };
+  },
+
+  normalizeComics(comics) {
+    return (comics || []).map((comic) => ({
+      ...comic,
+      isGenerating: comic.status !== "ready",
+      coverSrc: comic.generatedImageDisplayURL || comic.sourceDisplayURL || comic.sourceFileID,
+    }));
   },
 
   navigateToPhotoPool() {
@@ -119,6 +166,12 @@ Page({
   navigateToHistory() {
     wx.navigateTo({
       url: "/pages/history/history",
+    });
+  },
+
+  navigateToFamilySpace() {
+    wx.navigateTo({
+      url: "/pages/familySpace/familySpace",
     });
   },
 });

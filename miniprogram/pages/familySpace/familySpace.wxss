@@ -1,0 +1,158 @@
+page {
+  background: #f6f7f2;
+  color: #20231d;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 32rpx 28rpx 56rpx;
+  box-sizing: border-box;
+}
+
+.header {
+  min-height: 220rpx;
+  display: flex;
+  align-items: flex-end;
+  padding: 32rpx;
+  box-sizing: border-box;
+  color: #fff;
+  background: linear-gradient(135deg, #244638 0%, #6c7f45 100%);
+  border-radius: 16rpx;
+}
+
+.eyebrow {
+  font-size: 24rpx;
+  opacity: 0.82;
+  margin-bottom: 12rpx;
+}
+
+.title {
+  font-size: 44rpx;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin-top: 16rpx;
+  font-size: 27rpx;
+  line-height: 1.5;
+  opacity: 0.86;
+}
+
+.current,
+.section {
+  margin-top: 24rpx;
+  padding: 28rpx;
+  background: #fff;
+  border: 1rpx solid #e7e8df;
+  border-radius: 14rpx;
+}
+
+.current-label {
+  color: #74786d;
+  font-size: 24rpx;
+}
+
+.current-name {
+  margin-top: 8rpx;
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.section-title {
+  margin-bottom: 20rpx;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.create-row {
+  display: flex;
+  gap: 16rpx;
+  align-items: center;
+}
+
+.family-input {
+  flex: 1;
+  min-width: 0;
+  height: 82rpx;
+  padding: 0 22rpx;
+  box-sizing: border-box;
+  background: #f6f7f2;
+  border: 1rpx solid #dfe2d6;
+  border-radius: 10rpx;
+  font-size: 28rpx;
+}
+
+.create-btn,
+.home-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  height: 82rpx;
+  margin: 0;
+  padding: 0 28rpx;
+  color: #fff;
+  background: #244638;
+  border-radius: 10rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.create-btn::after,
+.home-btn::after {
+  border: 0;
+}
+
+.scope-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  min-height: 112rpx;
+  padding: 22rpx;
+  margin-top: 16rpx;
+  box-sizing: border-box;
+  background: #f9faf6;
+  border: 1rpx solid #e0e3d7;
+  border-radius: 12rpx;
+}
+
+.scope-active {
+  background: #eef5e8;
+  border-color: #9caf7a;
+}
+
+.scope-name {
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.scope-desc {
+  margin-top: 8rpx;
+  color: #74786d;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
+
+.check {
+  flex-shrink: 0;
+  color: #244638;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.empty {
+  padding: 22rpx;
+  color: #74786d;
+  background: #f9faf6;
+  border-radius: 10rpx;
+  font-size: 26rpx;
+  line-height: 1.5;
+}
+
+.home-btn {
+  width: 100%;
+  margin-top: 28rpx;
+}

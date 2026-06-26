@@ -14,7 +14,7 @@ const IMAGE_RESULT_POLL_INTERVAL_MS = 3000;
 const IMAGE_RESULT_MAX_POLLS = 5;
 const STORY_REQUEST_TIMEOUT_MS = 45000;
 
-exports.main = async (event) => {
+exports.main = async (event = {}) => {
   await ensureCollections();
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;
@@ -23,8 +23,28 @@ exports.main = async (event) => {
     return { code: "ok" };
   }
 
+  if (!event.action) {
+    return processAllUsers();
+  }
+
+  if (event.action === "listFamilies") {
+    return listFamilies(openid);
+  }
+
+  if (event.action === "createFamily") {
+    return createFamily(openid, event.name);
+  }
+
+  const scopeResult = await resolveRequestScope(openid, event);
+
+  if (scopeResult.error) {
+    return scopeResult.error;
+  }
+
+  const scope = scopeResult.scope;
+
   if (event.action === "generate") {
-    return startGeneration(openid, { force: Boolean(event.force) });
+    return startGeneration(openid, scope, { force: Boolean(event.force) });
   }
 
   if (event.action === "processStory") {
@@ -40,33 +60,35 @@ exports.main = async (event) => {
   }
 
   if (event.action === "dashboard") {
-    return getDashboard(openid);
+    return getDashboard(openid, scope);
   }
 
   if (event.action === "addPhoto") {
-    return addPhoto(openid, event.fileID);
+    return addPhoto(openid, scope, event.fileID);
   }
 
   if (event.action === "listPhotos") {
-    return listPhotos(openid);
+    return listPhotos(openid, scope);
   }
 
   if (event.action === "deletePhoto") {
-    return deletePhoto(openid, event.photoId);
+    return deletePhoto(openid, scope, event.photoId);
   }
 
   if (event.action === "listComics") {
-    return listComics(openid);
+    return listComics(openid, scope);
   }
 
   if (event.action === "getComic") {
     return getComic(openid, event.comicId);
   }
-
   return processAllUsers();
 };
 
 async function ensureCollections() {
+  await ensureCollection("users");
+  await ensureCollection("families");
+  await ensureCollection("familyMembers");
   await ensureCollection("photos");
   await ensureCollection("comics");
 }
@@ -82,17 +104,308 @@ async function ensureCollection(name) {
   }
 }
 
+async function resolveRequestScope(openid, event = {}) {
+  if (!openid) {
+    return { error: { code: "missing_openid" } };
+  }
+
+  const requestedType = event.scopeType === "family" ? "family" : "personal";
+  if (requestedType === "personal") {
+    return {
+      scope: createPersonalScope(openid),
+    };
+  }
+
+  const familyId = normalizeId(event.scopeId || event.familyId);
+  if (!familyId) {
+    return { error: { code: "missing_scope" } };
+  }
+
+  const allowed = await canAccessFamily(openid, familyId);
+  if (!allowed) {
+    return { error: { code: "forbidden" } };
+  }
+
+  return {
+    scope: {
+      scopeType: "family",
+      scopeId: familyId,
+    },
+  };
+}
+
+function createPersonalScope(openid) {
+  return {
+    scopeType: "personal",
+    scopeId: openid,
+  };
+}
+
+function normalizeId(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+async function canAccessFamily(openid, familyId) {
+  if (!openid || !familyId) return false;
+
+  const memberRes = await db
+    .collection("familyMembers")
+    .where({
+      familyId,
+      openid,
+      status: "active",
+    })
+    .limit(1)
+    .get();
+
+  if (memberRes.data && memberRes.data.length) {
+    return true;
+  }
+
+  const familyRes = await db
+    .collection("families")
+    .where({
+      _id: familyId,
+      ownerOpenid: openid,
+      status: "active",
+    })
+    .limit(1)
+    .get();
+
+  return Boolean(familyRes.data && familyRes.data.length);
+}
+
+function getScopeFields(scope) {
+  return {
+    scopeType: scope.scopeType,
+    scopeId: scope.scopeId,
+  };
+}
+
+function getDocumentScope(doc) {
+  if (doc && doc.scopeType && doc.scopeId) {
+    return {
+      scopeType: doc.scopeType,
+      scopeId: doc.scopeId,
+    };
+  }
+
+  if (doc && doc._openid) {
+    return createPersonalScope(doc._openid);
+  }
+
+  return null;
+}
+
+function isSameScope(left, right) {
+  return Boolean(
+    left &&
+      right &&
+      left.scopeType === right.scopeType &&
+      left.scopeId === right.scopeId
+  );
+}
+
+async function canAccessDocument(openid, doc) {
+  const scope = getDocumentScope(doc);
+  if (!scope) return false;
+
+  if (scope.scopeType === "personal") {
+    return scope.scopeId === openid;
+  }
+
+  if (scope.scopeType === "family") {
+    return canAccessFamily(openid, scope.scopeId);
+  }
+
+  return false;
+}
+
+function getScopedWhere(scope, extra = {}) {
+  return {
+    ...getScopeFields(scope),
+    ...extra,
+  };
+}
+
+function getLegacyPersonalWhere(scope, extra = {}) {
+  if (!scope || scope.scopeType !== "personal") return null;
+  return {
+    _openid: scope.scopeId,
+    scopeType: db.command.exists(false),
+    ...extra,
+  };
+}
+
+async function countScoped(collectionName, scope, extra = {}) {
+  const scopedRes = await db
+    .collection(collectionName)
+    .where(getScopedWhere(scope, extra))
+    .count();
+
+  let total = scopedRes.total || 0;
+  const legacyWhere = getLegacyPersonalWhere(scope, extra);
+  if (legacyWhere) {
+    const legacyRes = await db.collection(collectionName).where(legacyWhere).count();
+    total += legacyRes.total || 0;
+  }
+
+  return total;
+}
+
+async function getScopedDocs(collectionName, scope, extra = {}, options = {}) {
+  const limit = options.limit || 100;
+  const collection = db.collection(collectionName);
+  const queries = [runScopedQuery(collection, getScopedWhere(scope, extra), limit, options)];
+  const legacyWhere = getLegacyPersonalWhere(scope, extra);
+
+  if (legacyWhere) {
+    queries.push(runScopedQuery(collection, legacyWhere, limit, options));
+  }
+
+  const results = await Promise.all(queries);
+  const docs = [];
+  const seen = {};
+
+  results.forEach((res) => {
+    (res.data || []).forEach((doc) => {
+      if (!doc || !doc._id || seen[doc._id]) return;
+      seen[doc._id] = true;
+      docs.push(doc);
+    });
+  });
+
+  if (options.orderBy === "createdAt") {
+    docs.sort((a, b) => getSortableTime(b.createdAt) - getSortableTime(a.createdAt));
+  }
+
+  return docs.slice(0, limit);
+}
+
+function runScopedQuery(collection, where, limit, options = {}) {
+  let query = collection.where(where);
+  if (options.orderBy) {
+    query = query.orderBy(options.orderBy, options.order || "desc");
+  }
+  return query.limit(limit).get();
+}
+
+function getSortableTime(value) {
+  if (!value) return 0;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  if (typeof value === "string") return new Date(value).getTime() || 0;
+  if (typeof value === "object" && value.$date) return new Date(value.$date).getTime() || 0;
+  return 0;
+}
+
+async function listFamilies(openid) {
+  if (!openid) {
+    return { code: "missing_openid", families: [] };
+  }
+
+  const memberRes = await db
+    .collection("familyMembers")
+    .where({
+      openid,
+      status: "active",
+    })
+    .limit(20)
+    .get();
+
+  const members = memberRes.data || [];
+  const families = [];
+
+  for (let i = 0; i < members.length; i += 1) {
+    const member = members[i];
+    if (!member.familyId) continue;
+
+    try {
+      const familyRes = await db.collection("families").doc(member.familyId).get();
+      const family = familyRes.data;
+      if (!family || family.status !== "active") continue;
+
+      families.push({
+        ...family,
+        role: member.role || (family.ownerOpenid === openid ? "owner" : "member"),
+      });
+    } catch (err) {
+      console.warn("load family skipped", member.familyId, err && err.message ? err.message : err);
+    }
+  }
+
+  return {
+    code: "ok",
+    families,
+  };
+}
+
+async function createFamily(openid, name) {
+  if (!openid) {
+    return { code: "missing_openid" };
+  }
+
+  const familyName = normalizeFamilyName(name);
+  const familyRes = await db.collection("families").add({
+    data: {
+      name: familyName,
+      ownerOpenid: openid,
+      status: "active",
+      createdAt: db.serverDate(),
+      updatedAt: db.serverDate(),
+    },
+  });
+
+  await db.collection("familyMembers").add({
+    data: {
+      familyId: familyRes._id,
+      openid,
+      role: "owner",
+      status: "active",
+      joinedAt: db.serverDate(),
+      invitedBy: openid,
+      createdAt: db.serverDate(),
+      updatedAt: db.serverDate(),
+    },
+  });
+
+  return {
+    code: "ok",
+    family: {
+      _id: familyRes._id,
+      name: familyName,
+      ownerOpenid: openid,
+      status: "active",
+      role: "owner",
+    },
+  };
+}
+
+function normalizeFamilyName(name) {
+  const trimmed = typeof name === "string" ? name.trim() : "";
+  return (trimmed || "我的家庭").slice(0, 20);
+}
+
 async function processAllUsers() {
   const res = await db
     .collection("photos")
     .where({ status: "unused" })
     .limit(100)
     .get();
-  const openids = Array.from(new Set((res.data || []).map((item) => item._openid).filter(Boolean)));
+  const scopes = [];
+  const seenScopes = {};
+  (res.data || []).forEach((item) => {
+    const scope = getDocumentScope(item);
+    if (!scope) return;
+    const key = `${scope.scopeType}:${scope.scopeId}`;
+    if (seenScopes[key]) return;
+    seenScopes[key] = true;
+    scopes.push(scope);
+  });
   const results = [];
 
-  for (let i = 0; i < openids.length; i += 1) {
-    results.push(await processUser(openids[i]));
+  for (let i = 0; i < scopes.length; i += 1) {
+    results.push(await processScope(scopes[i]));
   }
 
   return {
@@ -102,26 +415,22 @@ async function processAllUsers() {
   };
 }
 
-async function getDashboard(openid) {
+async function getDashboard(openid, scope) {
   if (!openid) {
     return { code: "missing_openid" };
   }
 
   const date = getShanghaiDateKey();
-  const [unused, used, failed, todayComic, latestComic] = await Promise.all([
-    countPhotos(openid, "unused"),
-    countPhotos(openid, "used"),
-    countPhotos(openid, "failed"),
-    getLatestComic(openid, { date }),
-    getLatestComic(openid),
+  const [unused, used, failed, todayComics, recentComics] = await Promise.all([
+    countPhotos(scope, "unused"),
+    countPhotos(scope, "used"),
+    countPhotos(scope, "failed"),
+    getComics(scope, { date, limit: 6 }),
+    getComics(scope, { limit: 6 }),
   ]);
 
-  if (todayComic) {
-    await attachDisplayUrls(todayComic);
-  }
-  if (latestComic && (!todayComic || latestComic._id !== todayComic._id)) {
-    await attachDisplayUrls(latestComic);
-  }
+  await attachDisplayUrlsBatch(todayComics);
+  await attachDisplayUrlsBatch(recentComics);
 
   return {
     code: "ok",
@@ -130,41 +439,44 @@ async function getDashboard(openid) {
       used,
       failed,
     },
-    todayComic,
-    latestComic,
+    todayComics,
+    recentComics,
+    todayComic: todayComics[0] || null,
+    latestComic: recentComics[0] || null,
   };
 }
 
-async function countPhotos(openid, status) {
-  const res = await db
-    .collection("photos")
-    .where({
-      _openid: openid,
-      status,
-    })
-    .count();
-  return res.total || 0;
+async function countPhotos(scope, status) {
+  return countScoped("photos", scope, { status });
 }
 
-async function getLatestComic(openid, options = {}) {
+async function getLatestComic(scope, options = {}) {
+  const comics = await getComics(scope, {
+    ...options,
+    limit: 1,
+    onlyReady: true,
+  });
+  return comics[0] || null;
+}
+
+async function getComics(scope, options = {}) {
   const where = {
-    _openid: openid,
-    status: "ready",
+    status: options.onlyReady
+      ? "ready"
+      : db.command.in(["processing", "story_ready", "image_processing", "ready"]),
   };
   if (options.date) {
     where.date = options.date;
   }
 
-  const res = await db
-    .collection("comics")
-    .where(where)
-    .orderBy("createdAt", "desc")
-    .limit(1)
-    .get();
-  return res.data && res.data[0] ? res.data[0] : null;
+  const comics = await getScopedDocs("comics", scope, where, {
+    limit: options.limit || 6,
+    orderBy: "createdAt",
+  });
+  return comics;
 }
 
-async function addPhoto(openid, fileID) {
+async function addPhoto(openid, scope, fileID) {
   if (!openid) {
     return { code: "missing_openid" };
   }
@@ -176,6 +488,8 @@ async function addPhoto(openid, fileID) {
   const res = await db.collection("photos").add({
     data: {
       _openid: openid,
+      ...getScopeFields(scope),
+      uploaderOpenid: openid,
       fileID,
       status: "unused",
       source: "manual_batch",
@@ -192,25 +506,23 @@ async function addPhoto(openid, fileID) {
   };
 }
 
-async function listPhotos(openid) {
+async function listPhotos(openid, scope) {
   if (!openid) {
     return { code: "missing_openid", photos: [] };
   }
 
-  const res = await db
-    .collection("photos")
-    .where({ _openid: openid })
-    .orderBy("createdAt", "desc")
-    .limit(80)
-    .get();
+  const photos = await getScopedDocs("photos", scope, {}, {
+    limit: 80,
+    orderBy: "createdAt",
+  });
 
   return {
     code: "ok",
-    photos: res.data || [],
+    photos,
   };
 }
 
-async function deletePhoto(openid, photoId) {
+async function deletePhoto(openid, scope, photoId) {
   if (!openid) {
     return { code: "missing_openid" };
   }
@@ -221,8 +533,9 @@ async function deletePhoto(openid, photoId) {
 
   const photoRes = await db.collection("photos").doc(photoId).get();
   const photo = photoRes.data;
+  const photoScope = getDocumentScope(photo);
 
-  if (!photo || photo._openid !== openid) {
+  if (!photo || !isSameScope(photoScope, scope)) {
     return { code: "not_found" };
   }
 
@@ -241,22 +554,23 @@ async function deletePhoto(openid, photoId) {
   return { code: "ok" };
 }
 
-async function listComics(openid) {
+async function listComics(openid, scope) {
   if (!openid) {
     return { code: "missing_openid", comics: [] };
   }
 
-  const res = await db
-    .collection("comics")
-    .where({
-      _openid: openid,
+  const comics = await getScopedDocs(
+    "comics",
+    scope,
+    {
       status: db.command.in(["processing", "story_ready", "image_processing", "ready"]),
-    })
-    .orderBy("createdAt", "desc")
-    .limit(50)
-    .get();
+    },
+    {
+      limit: 50,
+      orderBy: "createdAt",
+    }
+  );
 
-  const comics = res.data || [];
   await attachDisplayUrlsBatch(comics);
 
   return {
@@ -277,7 +591,7 @@ async function getComic(openid, comicId) {
   const res = await db.collection("comics").doc(comicId).get();
   const comic = res.data;
 
-  if (!comic || comic._openid !== openid) {
+  if (!comic || !(await canAccessDocument(openid, comic))) {
     return { code: "not_found" };
   }
 
@@ -321,49 +635,49 @@ async function attachDisplayUrlsBatch(comics) {
   }
 }
 
-async function startGeneration(openid, options = {}) {
+async function startGeneration(openid, scope, options = {}) {
   if (!openid) {
     return { code: "missing_openid" };
   }
 
   const date = getShanghaiDateKey();
   if (!options.force) {
-    const existing = await db
-      .collection("comics")
-      .where({
-        _openid: openid,
+    const existing = await getScopedDocs(
+      "comics",
+      scope,
+      {
         date,
         status: db.command.in(["processing", "story_ready", "image_processing", "ready"]),
-      })
-      .limit(1)
-      .get();
+      },
+      { limit: 1 }
+    );
 
-    if (existing.data && existing.data.length) {
+    if (existing.length) {
       return {
         code: "already_generated",
-        comicId: existing.data[0]._id,
+        comicId: existing[0]._id,
         date,
       };
     }
   }
 
-  const candidates = await db
-    .collection("photos")
-    .where({
-      _openid: openid,
+  const candidates = await getScopedDocs(
+    "photos",
+    scope,
+    {
       status: "unused",
-    })
-    .limit(100)
-    .get();
+    },
+    { limit: 100 }
+  );
 
-  if (!candidates.data || !candidates.data.length) {
+  if (!candidates.length) {
     return {
       code: "no_photo",
       date,
     };
   }
 
-  const photo = pickRandom(candidates.data);
+  const photo = pickRandom(candidates);
   const tempUrl = await getTempFileURL(photo.fileID);
 
   await db.collection("photos").doc(photo._id).update({
@@ -376,6 +690,8 @@ async function startGeneration(openid, options = {}) {
   const addRes = await db.collection("comics").add({
     data: {
       _openid: openid,
+      ...getScopeFields(scope),
+      creatorOpenid: openid,
       photoId: photo._id,
       sourceFileID: photo.fileID,
       sourceTempURL: tempUrl,
@@ -648,7 +964,7 @@ async function getOwnedComic(openid, comicId) {
   if (!openid || !comicId) return null;
   const res = await db.collection("comics").doc(comicId).get();
   const comic = res.data;
-  if (!comic || comic._openid !== openid) return null;
+  if (!comic || !(await canAccessDocument(openid, comic))) return null;
   return comic;
 }
 
@@ -701,49 +1017,50 @@ async function markPhotoUsed(comic) {
   });
 }
 
-async function processUser(openid, options = {}) {
-  if (!openid) {
-    return { code: "missing_openid" };
+async function processScope(scope, options = {}) {
+  if (!scope || !scope.scopeType || !scope.scopeId) {
+    return { code: "missing_scope" };
   }
 
   const date = getShanghaiDateKey();
   if (!options.force) {
-    const existing = await db
-      .collection("comics")
-      .where({
-        _openid: openid,
+    const existing = await getScopedDocs(
+      "comics",
+      scope,
+      {
         date,
         status: "ready",
-      })
-      .limit(1)
-      .get();
+      },
+      { limit: 1 }
+    );
 
-    if (existing.data && existing.data.length) {
+    if (existing.length) {
       return {
         code: "already_generated",
-        comicId: existing.data[0]._id,
+        comicId: existing[0]._id,
         date,
       };
     }
   }
 
-  const candidates = await db
-    .collection("photos")
-    .where({
-      _openid: openid,
+  const candidates = await getScopedDocs(
+    "photos",
+    scope,
+    {
       status: "unused",
-    })
-    .limit(100)
-    .get();
+    },
+    { limit: 100 }
+  );
 
-  if (!candidates.data || !candidates.data.length) {
+  if (!candidates.length) {
     return {
       code: "no_photo",
       date,
     };
   }
 
-  const photo = pickRandom(candidates.data);
+  const photo = pickRandom(candidates);
+  const creatorOpenid = photo.uploaderOpenid || photo._openid || scope.scopeId;
 
   try {
     await db.collection("photos").doc(photo._id).update({
@@ -758,7 +1075,9 @@ async function processUser(openid, options = {}) {
     const content = generated.content;
     const addRes = await db.collection("comics").add({
       data: {
-        _openid: openid,
+        _openid: creatorOpenid,
+        ...getScopeFields(scope),
+        creatorOpenid,
         photoId: photo._id,
         sourceFileID: photo.fileID,
         sourceTempURL: tempUrl,

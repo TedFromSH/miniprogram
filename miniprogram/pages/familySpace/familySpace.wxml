@@ -1,0 +1,65 @@
+<view class="page">
+  <view class="header">
+    <view>
+      <view class="eyebrow">数据空间</view>
+      <view class="title">家庭空间</view>
+      <view class="subtitle">切换后，照片池、首页统计和漫画历史都会按当前空间展示。</view>
+    </view>
+  </view>
+
+  <view class="current">
+    <view class="current-label">当前使用</view>
+    <view class="current-name">
+      {{activeScope.scopeType === 'family' ? activeScope.scopeName || '家庭空间' : '个人空间'}}
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">创建家庭</view>
+    <view class="create-row">
+      <input
+        class="family-input"
+        value="{{familyName}}"
+        placeholder="例如：我们的家庭"
+        maxlength="20"
+        bindinput="onFamilyNameInput"
+      />
+      <button class="create-btn" loading="{{creating}}" bindtap="createFamily">创建</button>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">切换空间</view>
+
+    <view
+      class="scope-item {{activeScope.scopeType === 'personal' ? 'scope-active' : ''}}"
+      bindtap="switchToPersonal"
+    >
+      <view>
+        <view class="scope-name">个人空间</view>
+        <view class="scope-desc">只查看和生成你自己的照片漫画。</view>
+      </view>
+      <view wx:if="{{activeScope.scopeType === 'personal'}}" class="check">当前</view>
+    </view>
+
+    <view wx:if="{{!families.length && !loading}}" class="empty">
+      还没有家庭空间，创建一个后就能验证家庭数据隔离。
+    </view>
+
+    <view
+      wx:for="{{families}}"
+      wx:key="_id"
+      class="scope-item {{activeScope.scopeType === 'family' && activeScope.scopeId === item._id ? 'scope-active' : ''}}"
+      data-id="{{item._id}}"
+      bindtap="switchToFamily"
+    >
+      <view>
+        <view class="scope-name">{{item.name}}</view>
+        <view class="scope-desc">{{item.role === 'owner' ? '创建者' : '成员'}} · 家庭共享数据空间</view>
+      </view>
+      <view wx:if="{{activeScope.scopeType === 'family' && activeScope.scopeId === item._id}}" class="check">当前</view>
+    </view>
+  </view>
+
+  <button class="home-btn" bindtap="backHome">返回首页</button>
+</view>

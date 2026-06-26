@@ -1,14 +1,27 @@
 <view class="page">
   <view class="hero">
     <view>
-      <view class="eyebrow">每日照片漫画</view>
-      <view class="title">从照片池里抽出今天的故事</view>
-      <view class="subtitle">先上传一批照片，系统每天随机选择一张生成漫画脚本。</view>
+      <view class="memory-strip">
+        <view class="memory-card">生活</view>
+        <view class="memory-card">旅行</view>
+        <view class="memory-card">日常</view>
+      </view>
+      <view class="eyebrow">生活瞬间</view>
+      <view class="title">帮你记录人生里的闪光片刻</view>
+      <view class="subtitle">上传照片，把生活里的片刻整理成漫画回忆。</view>
     </view>
   </view>
 
   <view wx:if="{{initError}}" class="notice">
     {{initError}}
+  </view>
+
+  <view class="scope-card" bindtap="navigateToFamilySpace">
+    <view>
+      <view class="scope-label">当前空间</view>
+      <view class="scope-name">{{activeScopeLabel}}</view>
+    </view>
+    <view class="scope-action">切换</view>
   </view>
 
   <view class="stats">
@@ -28,39 +41,39 @@
 
   <view class="action-row">
     <button class="primary-btn" loading="{{generating}}" bindtap="generateTodayComic">
-      生成今日漫画
+      随机生成漫画
     </button>
     <button class="secondary-btn" bindtap="navigateToPhotoPool">
       管理照片池
     </button>
   </view>
 
-  <view class="section-head">
-    <view class="section-title">今日内容</view>
-    <view class="section-link" bindtap="navigateToHistory">历史</view>
+  <view wx:if="{{displayComics.length}}" class="section-head">
+    <view class="section-title">{{displaySectionTitle}}</view>
+    <view wx:if="{{displaySectionTitle === '今日漫画故事'}}" class="section-link" bindtap="navigateToHistory">全部历史</view>
   </view>
 
-  <view wx:if="{{todayComic}}" class="comic-card" bindtap="openTodayComic">
-    <image class="comic-cover" src="{{todayComic.generatedImageDisplayURL || todayComic.sourceDisplayURL || todayComic.sourceFileID}}" mode="aspectFill"></image>
-    <view class="comic-body">
-      <view class="comic-date">{{todayComic.date}}</view>
-      <view class="comic-title">{{todayComic.title}}</view>
-      <view class="comic-summary">{{todayComic.summary}}</view>
-    </view>
-  </view>
-
-  <view wx:elif="{{latestComic}}" class="comic-card" bindtap="openTodayComic">
-    <image class="comic-cover" src="{{latestComic.generatedImageDisplayURL || latestComic.sourceDisplayURL || latestComic.sourceFileID}}" mode="aspectFill"></image>
-    <view class="comic-body">
-      <view class="comic-date">最近一次生成</view>
-      <view class="comic-title">{{latestComic.title}}</view>
-      <view class="comic-summary">{{latestComic.summary}}</view>
+  <view wx:if="{{displayComics.length}}" class="comic-list">
+    <view
+      wx:for="{{displayComics}}"
+      wx:key="_id"
+      class="comic-card"
+      data-id="{{item._id}}"
+      bindtap="openComic"
+    >
+      <image class="comic-cover" src="{{item.coverSrc}}" mode="aspectFill"></image>
+      <view class="comic-body">
+        <view class="comic-date">{{item.date}}</view>
+        <view class="comic-title">{{item.title}}</view>
+        <view class="comic-summary">{{item.summary}}</view>
+        <view wx:if="{{item.isGenerating}}" class="comic-status">生成中</view>
+      </view>
     </view>
   </view>
 
   <view wx:else class="empty-state">
     <view class="empty-title">还没有漫画</view>
-    <view class="empty-desc">先上传几张照片，然后生成第一篇今日漫画。</view>
+    <view class="empty-desc">先上传几张照片，然后生成第一篇漫画。</view>
     <button class="inline-btn" bindtap="navigateToPhotoPool">去上传照片</button>
   </view>
 </view>
