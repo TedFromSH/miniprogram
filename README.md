@@ -49,3 +49,9 @@
 ## Git
 
 `project.private.config.json` 是微信开发者工具本机配置，已被 `.gitignore` 忽略，不进入仓库。
+
+## 新机器接手开发
+
+如果在另一台电脑从 GitHub 获取项目继续开发，请先阅读：
+
+- [新机器接手开发指南](docs/new-machine-setup.md)
