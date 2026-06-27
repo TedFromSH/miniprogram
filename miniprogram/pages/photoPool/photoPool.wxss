@@ -66,6 +66,14 @@ page {
   border-radius: 12rpx;
 }
 
+.photo-card-clickable {
+  transition: opacity 0.15s ease;
+}
+
+.photo-card-clickable:active {
+  opacity: 0.78;
+}
+
 .photo {
   display: block;
   width: 100%;

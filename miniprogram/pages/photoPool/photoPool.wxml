@@ -14,16 +14,23 @@
   </view>
 
   <view wx:else class="grid">
-    <view wx:for="{{photos}}" wx:key="_id" class="photo-card">
+    <view
+      wx:for="{{photos}}"
+      wx:key="_id"
+      class="photo-card {{item.canOpenComic ? 'photo-card-clickable' : ''}}"
+      data-status="{{item.status}}"
+      data-comic-id="{{item.comicId}}"
+      bindtap="openGeneratedComic"
+    >
       <image class="photo" src="{{item.fileID}}" mode="aspectFill"></image>
       <view class="meta">
-        <view class="status status-{{item.status}}">{{item.status}}</view>
+        <view class="status status-{{item.status}}">{{item.statusText}}</view>
         <view
           wx:if="{{item.status === 'unused' || item.status === 'failed'}}"
           class="delete"
           data-id="{{item._id}}"
           data-status="{{item.status}}"
-          bindtap="confirmDelete"
+          catchtap="confirmDelete"
         >
           删除
         </view>

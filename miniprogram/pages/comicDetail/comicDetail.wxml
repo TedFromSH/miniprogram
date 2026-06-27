@@ -1,5 +1,11 @@
 <view class="page" wx:if="{{comic}}">
-  <image class="cover" src="{{coverSrc}}" mode="aspectFill" bindload="onCoverLoad" binderror="onCoverError"></image>
+  <view class="cover-wrap" bindtap="previewCover">
+    <image class="cover" src="{{coverSrc}}" mode="aspectFill" bindload="onCoverLoad" binderror="onCoverError"></image>
+    <view wx:if="{{coverSrc}}" class="cover-actions">
+      <view class="cover-action" catchtap="previewCover">查看全图</view>
+      <view class="cover-action" catchtap="previewSourceImage">查看原图</view>
+    </view>
+  </view>
 
   <view class="article">
     <view class="date">{{comic.date}}</view>

@@ -7,11 +7,35 @@ page {
   min-height: 100vh;
 }
 
+.cover-wrap {
+  position: relative;
+}
+
 .cover {
   display: block;
   width: 100%;
   height: 560rpx;
   background: #dfe2d6;
+}
+
+.cover-actions {
+  position: absolute;
+  right: 24rpx;
+  bottom: 52rpx;
+  display: flex;
+  gap: 12rpx;
+}
+
+.cover-action {
+  padding: 8rpx 16rpx;
+  color: #fff;
+  background: rgba(32, 35, 29, 0.62);
+  border-radius: 999rpx;
+  font-size: 22rpx;
+}
+
+.cover-action:active {
+  background: rgba(32, 35, 29, 0.78);
 }
 
 .article {

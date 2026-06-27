@@ -25,6 +25,39 @@ Page({
     this.clearImagePoll();
   },
 
+  previewCover() {
+    const previewUrl = this.data.coverSrc;
+    if (!previewUrl) {
+      wx.showToast({
+        title: "图片还在生成中",
+        icon: "none",
+      });
+      return;
+    }
+
+    wx.previewImage({
+      current: previewUrl,
+      urls: [previewUrl],
+    });
+  },
+
+  previewSourceImage() {
+    const comic = this.data.comic || {};
+    const previewUrl = comic.sourceDisplayURL || comic.sourceFileID;
+    if (!previewUrl) {
+      wx.showToast({
+        title: "原图暂不可用",
+        icon: "none",
+      });
+      return;
+    }
+
+    wx.previewImage({
+      current: previewUrl,
+      urls: [previewUrl],
+    });
+  },
+
   async processIfNeeded(comic) {
     if (!comic || this.processingStarted) return;
 

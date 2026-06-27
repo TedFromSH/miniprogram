@@ -35,7 +35,7 @@ Page({
       const res = await callFunction("dailyComic", { action: "listPhotos" });
       const result = res.result || {};
       this.setData({
-        photos: result.photos || [],
+        photos: this.normalizePhotos(result.photos || []),
         loading: false,
       });
     } catch (err) {
@@ -46,6 +46,33 @@ Page({
         icon: "none",
       });
     }
+  },
+
+  normalizePhotos(photos) {
+    return (photos || []).map((photo) => ({
+      ...photo,
+      statusText: this.getStatusText(photo.status),
+      canOpenComic: photo.status === "used" && Boolean(photo.comicId),
+    }));
+  },
+
+  getStatusText(status) {
+    const statusMap = {
+      unused: "待生成",
+      processing: "生成中",
+      used: "已生成漫画",
+      failed: "生成失败",
+    };
+    return statusMap[status] || "未知状态";
+  },
+
+  openGeneratedComic(e) {
+    const { status, comicId } = e.currentTarget.dataset;
+    if (status !== "used" || !comicId) return;
+
+    wx.navigateTo({
+      url: `/pages/comicDetail/comicDetail?id=${comicId}`,
+    });
   },
 
   async chooseAndUpload() {
