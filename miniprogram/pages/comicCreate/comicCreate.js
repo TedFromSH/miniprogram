@@ -55,10 +55,34 @@ Page({
     selectedStyleDesc: "",
     storyGuide: "",
     storyGuideError: "",
+    comicReadyTemplateId: "",
+    subscribeConfigLoaded: false,
   },
 
-  onLoad() {
+  async onLoad() {
+    await this.loadSubscribeConfig();
     this.prepareGeneration();
+  },
+
+  async loadSubscribeConfig() {
+    try {
+      const res = await callFunction("dailyComic", {
+        action: "getSubscribeConfig",
+      });
+      const result = res.result || {};
+      if (!result.comicReadyTemplateId) {
+        console.warn("comic ready subscribe template id is not configured");
+      }
+      this.setData({
+        comicReadyTemplateId: result.comicReadyTemplateId || "",
+        subscribeConfigLoaded: true,
+      });
+    } catch (err) {
+      console.warn("load subscribe config failed", err);
+      this.setData({
+        subscribeConfigLoaded: true,
+      });
+    }
   },
 
   async prepareGeneration() {
@@ -130,6 +154,8 @@ Page({
       return;
     }
 
+    const notifyOnReady = await this.requestComicReadySubscribe();
+
     this.setData({ submitting: true });
     wx.showLoading({ title: "提交中" });
 
@@ -139,6 +165,7 @@ Page({
         photoId: this.data.photo._id,
         styleId: this.data.selectedStyleId,
         storyGuide: this.data.storyGuide,
+        notifyOnReady,
       });
       const result = res.result || {};
 
@@ -195,5 +222,31 @@ Page({
       wx.hideLoading();
       this.setData({ submitting: false });
     }
+  },
+
+  requestComicReadySubscribe() {
+    const templateId = this.data.comicReadyTemplateId;
+    if (!wx.requestSubscribeMessage) {
+      console.warn("wx.requestSubscribeMessage is unavailable");
+      return Promise.resolve(false);
+    }
+
+    if (!templateId) {
+      console.warn("comic ready subscribe template id is empty");
+      return Promise.resolve(false);
+    }
+
+    return new Promise((resolve) => {
+      wx.requestSubscribeMessage({
+        tmplIds: [templateId],
+        success(res) {
+          resolve(res && res[templateId] === "accept");
+        },
+        fail(err) {
+          console.warn("request comic ready subscribe failed", err);
+          resolve(false);
+        },
+      });
+    });
   },
 });

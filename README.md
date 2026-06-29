@@ -109,6 +109,19 @@
 8. 如果剧情描述包含不适合生成的内容，或提出脱离漫画剧情场景的 AI/问答/解题等要求，系统会拦截并提示重新调整。
 9. 进入漫画详情页，点击顶部图片右下角「查看全图」「查看原图」，确认可进入微信图片预览页；如需保存图片，可在预览页长按操作。
 
+## Subscribe message setup
+
+To enable WeChat completion notifications for comic generation:
+
+1. In the WeChat Mini Program admin, add a one-time subscribe message template for a completed generation/task notification.
+2. Configure the template keywords to match the cloud function payload:
+   - `thing1`: pending item / comic title
+   - `phrase5`: generation status
+   - `time12`: completion time
+3. Set the `dailyComic` cloud function environment variable `COMIC_READY_TEMPLATE_ID` to the template ID.
+4. Optional: set `SUBSCRIBE_MINIPROGRAM_STATE` to `developer`, `trial`, or `formal`. The default is `formal`.
+5. Redeploy `cloudfunctions/dailyComic`. The `comicQueueTimer` trigger runs every 5 minutes to continue queued comics and send pending ready notifications.
+
 ## Git
 
 `project.private.config.json` 是微信开发者工具本机配置，已被 `.gitignore` 忽略，不进入仓库。

@@ -17,6 +17,9 @@ const STORY_REQUEST_TIMEOUT_MS = 45000;
 const FAMILY_INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const PHOTO_RESERVATION_TTL_MS = 10 * 60 * 1000;
 const STORY_GUIDE_MAX_LENGTH = 300;
+const PENDING_COMIC_PROCESS_LIMIT = 3;
+const COMIC_READY_TEMPLATE_ID = process.env.COMIC_READY_TEMPLATE_ID || "";
+const SUBSCRIBE_MINIPROGRAM_STATE = process.env.SUBSCRIBE_MINIPROGRAM_STATE || "formal";
 
 const COMIC_STYLES = [
   {
@@ -79,7 +82,17 @@ exports.main = async (event = {}) => {
   }
 
   if (!event.action) {
-    return processAllUsers();
+    return runScheduledJobs();
+  }
+
+  if (event.action === "getSubscribeConfig") {
+    return getSubscribeConfig();
+  }
+
+  if (event.action === "processPendingComics") {
+    return processPendingComics({
+      limit: Number(event.limit) || PENDING_COMIC_PROCESS_LIMIT,
+    });
   }
 
   if (event.action === "listFamilies") {
@@ -157,7 +170,7 @@ exports.main = async (event = {}) => {
   if (event.action === "getComic") {
     return getComic(openid, event.comicId);
   }
-  return processAllUsers();
+  return runScheduledJobs();
 };
 
 async function ensureCollections() {
@@ -665,6 +678,129 @@ function createInviteToken() {
   return crypto.randomBytes(16).toString("hex");
 }
 
+function getSubscribeConfig() {
+  return {
+    code: "ok",
+    comicReadyTemplateId: COMIC_READY_TEMPLATE_ID,
+  };
+}
+
+async function runScheduledJobs() {
+  const pendingResult = await processPendingComics({
+    limit: PENDING_COMIC_PROCESS_LIMIT,
+  });
+  const notificationResult = await sendPendingReadyNotifications({
+    limit: PENDING_COMIC_PROCESS_LIMIT,
+  });
+  const dailyResult = await processAllUsers();
+
+  return {
+    code: "ok",
+    pendingResult,
+    notificationResult,
+    dailyResult,
+  };
+}
+
+async function processPendingComics(options = {}) {
+  const limit = Math.max(1, Math.min(Number(options.limit) || PENDING_COMIC_PROCESS_LIMIT, 10));
+  const res = await db
+    .collection("comics")
+    .where({
+      status: db.command.in(["processing", "story_ready", "image_processing"]),
+    })
+    .limit(limit)
+    .get();
+
+  const comics = res.data || [];
+  const results = [];
+
+  for (let i = 0; i < comics.length; i += 1) {
+    results.push(await processPendingComic(comics[i]));
+  }
+
+  return {
+    code: "ok",
+    total: results.length,
+    results,
+  };
+}
+
+async function processPendingComic(comic) {
+  if (!comic || !comic._id) {
+    return { code: "missing_comic" };
+  }
+
+  const processorOpenid = comic.creatorOpenid || comic._openid;
+  if (!processorOpenid) {
+    return {
+      code: "missing_processor",
+      comicId: comic._id,
+    };
+  }
+
+  const result = {
+    code: "ok",
+    comicId: comic._id,
+    steps: [],
+  };
+
+  try {
+    let latestComic = comic;
+
+    if (!hasStory(latestComic)) {
+      const storyResult = await processComicStory(processorOpenid, latestComic._id);
+      result.steps.push({ action: "processStory", code: storyResult.code });
+      latestComic = await getComicById(latestComic._id);
+    }
+
+    if (latestComic && !latestComic.generatedImageFileID) {
+      const imageResult = await processComicImage(processorOpenid, latestComic._id);
+      result.steps.push({ action: "processImage", code: imageResult.code });
+      latestComic = await getComicById(latestComic._id);
+    }
+
+    if (latestComic && isComicReadyForNotification(latestComic)) {
+      const notifyResult = await sendComicReadyNotification(latestComic);
+      result.steps.push({ action: "notifyReady", code: notifyResult.code });
+    }
+
+    return result;
+  } catch (err) {
+    return {
+      code: "failed",
+      comicId: comic._id,
+      message: err && err.message ? err.message : "unknown pending comic error",
+      steps: result.steps,
+    };
+  }
+}
+
+async function sendPendingReadyNotifications(options = {}) {
+  const limit = Math.max(1, Math.min(Number(options.limit) || PENDING_COMIC_PROCESS_LIMIT, 10));
+  const res = await db
+    .collection("comics")
+    .where({
+      status: "ready",
+      notifyStatus: "pending",
+    })
+    .limit(limit)
+    .get();
+
+  const comics = res.data || [];
+  const results = [];
+
+  for (let i = 0; i < comics.length; i += 1) {
+    results.push(await sendComicReadyNotification(comics[i]));
+  }
+
+  return {
+    code: "ok",
+    total: results.length,
+    results,
+  };
+}
+
 async function processAllUsers() {
   const res = await db
     .collection("photos")
@@ -980,6 +1116,7 @@ async function submitGeneration(openid, scope, event = {}) {
   }
   const storyGuide = normalizeStoryGuide(event.storyGuide);
   const moderation = await moderateStoryGuide(storyGuide);
+  const notifyOnReady = Boolean(event.notifyOnReady && COMIC_READY_TEMPLATE_ID);
 
   if (moderation.code === "unavailable") {
     return { code: "moderation_unavailable" };
@@ -1029,6 +1166,11 @@ async function submitGeneration(openid, scope, event = {}) {
       styleName: style.name,
       stylePrompt: style.prompt,
       storyGuide,
+      notifyOnReady,
+      notifyTemplateId: notifyOnReady ? COMIC_READY_TEMPLATE_ID : "",
+      notifyStatus: notifyOnReady ? "pending" : "disabled",
+      notifyError: "",
+      notifiedAt: null,
       moderationStatus: storyGuide ? "passed" : "not_required",
       moderationCategories: moderation.categories || [],
       moderationReason: moderation.reason || "",
@@ -1306,6 +1448,11 @@ async function processComicStory(openid, comicId) {
       },
     });
     await markPhotoUsed(comic);
+    await sendComicReadyNotification({
+      ...comic,
+      ...content,
+      status: comic.generatedImageFileID ? "ready" : "story_ready",
+    });
 
     return { code: "ok", comicId };
   } catch (err) {
@@ -1322,6 +1469,7 @@ async function processComicImage(openid, comicId, options = {}) {
   }
 
   if (comic.generatedImageFileID && !options.force) {
+    await sendComicReadyNotification(comic);
     return { code: "skipped", comicId };
   }
 
@@ -1387,17 +1535,29 @@ async function processComicImage(openid, comicId, options = {}) {
       throw err;
     }
 
+    const readyStatus = hasStory(comic) ? "ready" : "processing";
+    const updatedComic = {
+      ...comic,
+      generatedImageUrl,
+      generatedImageFileID,
+      imagePrompt,
+      status: readyStatus,
+      generator: hasStory(comic) ? "ai-v1" : "ai-image-v1",
+      aiError: "",
+    };
+
     await db.collection("comics").doc(comic._id).update({
       data: {
         generatedImageUrl,
         generatedImageFileID,
         imagePrompt,
-        status: hasStory(comic) ? "ready" : "processing",
-        generator: hasStory(comic) ? "ai-v1" : "ai-image-v1",
+        status: readyStatus,
+        generator: updatedComic.generator,
         aiError: "",
         updatedAt: db.serverDate(),
       },
     });
+    await sendComicReadyNotification(updatedComic);
 
     return { code: "ok", comicId, generatedImageUrl, generatedImageFileID };
   } catch (err) {
@@ -1513,8 +1673,132 @@ async function getOwnedComic(openid, comicId) {
   return comic;
 }
 
+async function getComicById(comicId) {
+  if (!comicId) return null;
+  try {
+    const res = await db.collection("comics").doc(comicId).get();
+    return res.data || null;
+  } catch (err) {
+    return null;
+  }
+}
+
 function hasStory(comic) {
   return Boolean(comic && comic.panels && comic.panels.length);
+}
+
+function isComicReadyForNotification(comic) {
+  return Boolean(comic && comic.status === "ready" && hasStory(comic));
+}
+
+async function sendComicReadyNotification(comic) {
+  if (!isComicReadyForNotification(comic)) {
+    return { code: "not_ready" };
+  }
+
+  if (!comic.notifyOnReady || comic.notifyStatus !== "pending") {
+    return { code: "skipped" };
+  }
+
+  if (!COMIC_READY_TEMPLATE_ID) {
+    await updateComicNotifyStatus(comic._id, {
+      notifyStatus: "disabled",
+      notifyError: "COMIC_READY_TEMPLATE_ID is not configured",
+    });
+    return { code: "missing_template" };
+  }
+
+  if (!comic.creatorOpenid) {
+    await updateComicNotifyStatus(comic._id, {
+      notifyStatus: "failed",
+      notifyError: "missing creatorOpenid",
+    });
+    return { code: "missing_openid" };
+  }
+
+  const claimed = await claimComicReadyNotification(comic._id);
+  if (!claimed) {
+    return { code: "already_claimed" };
+  }
+
+  try {
+    await cloud.openapi.subscribeMessage.send({
+      touser: comic.creatorOpenid,
+      templateId: COMIC_READY_TEMPLATE_ID,
+      page: `pages/comicDetail/comicDetail?id=${comic._id}`,
+      miniprogramState: SUBSCRIBE_MINIPROGRAM_STATE,
+      lang: "zh_CN",
+      data: buildComicReadySubscribeData(comic),
+    });
+
+    await updateComicNotifyStatus(comic._id, {
+      notifyStatus: "sent",
+      notifyError: "",
+      notifiedAt: db.serverDate(),
+    });
+
+    return { code: "sent" };
+  } catch (err) {
+    const message = err && err.message ? err.message : "subscribe message send failed";
+    await updateComicNotifyStatus(comic._id, {
+      notifyStatus: "failed",
+      notifyError: message.slice(0, 300),
+    });
+    return { code: "failed", message };
+  }
+}
+
+async function claimComicReadyNotification(comicId) {
+  const res = await db
+    .collection("comics")
+    .where({
+      _id: comicId,
+      notifyStatus: "pending",
+    })
+    .update({
+      data: {
+        notifyStatus: "sending",
+        notifyClaimedAt: db.serverDate(),
+        updatedAt: db.serverDate(),
+      },
+    });
+
+  return Boolean(res && res.stats && res.stats.updated);
+}
+
+async function updateComicNotifyStatus(comicId, data) {
+  if (!comicId) return;
+  await db.collection("comics").doc(comicId).update({
+    data: {
+      ...data,
+      updatedAt: db.serverDate(),
+    },
+  });
+}
+
+function buildComicReadySubscribeData(comic) {
+  return {
+    thing1: {
+      value: clipSubscribeValue(comic.title || "照片漫画", 20),
+    },
+    phrase5: {
+      value: "已完成",
+    },
+    time12: {
+      value: formatSubscribeDateTime(new Date()),
+    },
+  };
+}
+
+function clipSubscribeValue(value, maxLength) {
+  const text = String(value || "").trim();
+  return text.length > maxLength ? text.slice(0, maxLength) : text;
+}
+
+function formatSubscribeDateTime(date) {
+  const shanghaiTime = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  const iso = shanghaiTime.toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
 }
 
 async function applyMockStory(comic, errorMessage) {
@@ -1534,6 +1818,11 @@ async function applyMockStory(comic, errorMessage) {
     },
   });
   await markPhotoUsed(comic);
+  await sendComicReadyNotification({
+    ...comic,
+    ...content,
+    status: comic.generatedImageFileID ? "ready" : "story_ready",
+  });
 }
 
 async function appendComicError(comic, errorMessage, extraData = {}) {
