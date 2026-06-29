@@ -21,6 +21,7 @@
 - `pages/familyInvite/familyInvite`：家庭邀请确认页，被邀请人通过分享卡片进入后确认加入家庭。
 - `pages/photoPool/photoPool`：照片池，支持批量上传、删除未使用照片，并从已生成照片跳转到对应漫画详情。
 - `pages/history/history`：漫画历史列表。
+- `pages/comicCreate/comicCreate`：漫画生成设置页，展示本次随机抽中的照片，支持选择漫画风格和输入剧情描述。
 - `pages/comicDetail/comicDetail`：漫画详情阅读页，支持预览漫画全图和原始照片。
 
 ## 云函数
@@ -32,6 +33,8 @@
 - `{ action: "init" }`：初始化集合。
 - `{ action: "dashboard" }`：获取当前空间的照片统计、今日漫画故事和历史漫画故事。
 - `{ action: "generate", force: true }`：从当前空间随机抽取一张未使用照片生成漫画。
+- `{ action: "prepareGeneration" }`：为手动生成流程预选一张未使用照片，并短期预占。
+- `{ action: "submitGeneration", photoId, styleId, storyGuide }`：提交生成设置，先审核剧情描述，通过后创建漫画任务。
 - `{ action: "addPhoto", fileID }`：向当前空间添加照片。
 - `{ action: "listPhotos" }`：列出当前空间照片池。
 - `{ action: "deletePhoto", photoId }`：删除当前空间未使用或失败的照片。
@@ -102,7 +105,9 @@
 4. 右键 `cloudfunctions/dailyComic`，选择「上传并部署：云端安装依赖」。
 5. 运行小程序，进入首页或照片池，云函数会尝试初始化数据库集合。
 6. 上传照片后，在首页点击「随机生成漫画」验证完整链路。
-7. 进入漫画详情页，点击顶部图片右下角「查看全图」「查看原图」，确认可进入微信图片预览页；如需保存图片，可在预览页长按操作。
+7. 在生成设置页确认随机抽中的照片，选择必填的漫画风格，可选填写剧情描述，再点击「开始生成」。
+8. 如果剧情描述包含不适合生成的内容，或提出脱离漫画剧情场景的 AI/问答/解题等要求，系统会拦截并提示重新调整。
+9. 进入漫画详情页，点击顶部图片右下角「查看全图」「查看原图」，确认可进入微信图片预览页；如需保存图片，可在预览页长按操作。
 
 ## Git
 

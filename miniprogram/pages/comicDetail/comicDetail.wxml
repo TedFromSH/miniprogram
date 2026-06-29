@@ -11,6 +11,10 @@
     <view class="date">{{comic.date}}</view>
     <view class="title">{{comic.title}}</view>
     <view class="summary">{{comic.summary}}</view>
+    <view wx:if="{{comic.hasCreationSetting}}" class="creation-meta">
+      <view wx:if="{{comic.styleName}}" class="creation-meta-row">风格 · {{comic.styleName}}</view>
+      <view wx:if="{{comic.storyGuide}}" class="creation-meta-row creation-meta-guide">剧情方向 · {{comic.storyGuide}}</view>
+    </view>
 
     <view wx:if="{{processing || comic.status === 'processing' || comic.status === 'image_processing'}}" class="processing-box">
       <view class="processing-title">正在生成</view>

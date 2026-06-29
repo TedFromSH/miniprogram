@@ -84,40 +84,9 @@ Page({
       return;
     }
 
-    this.setData({ generating: true });
-    wx.showLoading({ title: "生成中" });
-
-    try {
-      const res = await callFunction("dailyComic", {
-        action: "generate",
-        force: true,
-      });
-      const result = res.result || {};
-
-      if (result.code === "no_photo") {
-        wx.showToast({
-          title: "所有照片都已生成过，请先上传新照片",
-          icon: "none",
-        });
-        return;
-      }
-
-      if (result.comicId) {
-        wx.navigateTo({
-          url: `/pages/comicDetail/comicDetail?id=${result.comicId}`,
-        });
-      }
-
-      await this.loadDashboard();
-    } catch (err) {
-      wx.showToast({
-        title: "生成失败，请稍后重试",
-        icon: "none",
-      });
-    } finally {
-      wx.hideLoading();
-      this.setData({ generating: false });
-    }
+    wx.navigateTo({
+      url: "/pages/comicCreate/comicCreate",
+    });
   },
 
   openTodayComic() {

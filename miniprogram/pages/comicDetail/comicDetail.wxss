@@ -65,6 +65,24 @@ page {
   line-height: 1.65;
 }
 
+.creation-meta {
+  margin-top: 18rpx;
+  color: #747b6f;
+  font-size: 24rpx;
+  line-height: 1.55;
+}
+
+.creation-meta-row {
+  margin-top: 6rpx;
+}
+
+.creation-meta-guide {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .panel-list {
   margin-top: 36rpx;
 }

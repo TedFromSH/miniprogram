@@ -1,0 +1,54 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="loading">照片选择中</view>
+
+  <view wx:elif="{{photo}}" class="content">
+    <view class="section">
+      <view class="section-title">本次照片</view>
+      <image class="selected-photo" src="{{photo.displayURL || photo.fileID}}" mode="aspectFill"></image>
+    </view>
+
+    <view class="section">
+      <view class="section-title">漫画风格（必选）</view>
+      <view class="style-list">
+        <view
+          wx:for="{{styles}}"
+          wx:key="id"
+          class="style-item {{selectedStyleId === item.id ? 'style-item-active' : ''}}"
+          data-id="{{item.id}}"
+          bindtap="selectStyle"
+        >
+          <view class="style-name">{{item.name}}</view>
+        </view>
+      </view>
+      <view class="style-hint {{selectedStyleDesc ? 'style-hint-active' : ''}}">
+        {{selectedStyleDesc || '请选择一种漫画风格'}}
+      </view>
+    </view>
+
+    <view class="section">
+      <view class="section-title">剧情描述</view>
+      <textarea
+        class="story-input {{storyGuideError ? 'story-input-error' : ''}}"
+        maxlength="300"
+        placeholder="可写下希望发生的故事，例如：把这张照片改成一次温暖的小冒险。"
+        value="{{storyGuide}}"
+        bindinput="onStoryGuideInput"
+      ></textarea>
+      <view wx:if="{{storyGuideError}}" class="story-error">{{storyGuideError}}</view>
+      <view class="input-count">{{storyGuide.length}}/300</view>
+    </view>
+
+    <button
+      class="submit-btn {{!selectedStyleId ? 'submit-btn-disabled' : ''}}"
+      loading="{{submitting}}"
+      bindtap="submitGeneration"
+    >
+      开始生成
+    </button>
+  </view>
+
+  <view wx:else class="empty">
+    <view class="empty-title">没有可用照片</view>
+    <view class="empty-desc">请先上传照片，再回来生成漫画。</view>
+  </view>
+</view>

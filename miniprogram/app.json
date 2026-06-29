@@ -5,6 +5,7 @@
     "pages/familyInvite/familyInvite",
     "pages/photoPool/photoPool",
     "pages/history/history",
+    "pages/comicCreate/comicCreate",
     "pages/comicDetail/comicDetail",
     "pages/chatBot/chatBot",
     "pages/foodBuy/foodBuy"

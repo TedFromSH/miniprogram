@@ -144,6 +144,7 @@ Page({
     return {
       ...comic,
       displayAiError,
+      hasCreationSetting: Boolean(comic.styleName || comic.storyGuide),
     };
   },
 
